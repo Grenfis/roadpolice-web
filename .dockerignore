@@ -1,0 +1,5 @@
+bank/
+data/
+frontend/node_modules/
+frontend/dist/
+.git/

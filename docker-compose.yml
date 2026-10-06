@@ -1,0 +1,13 @@
+services:
+  roadpolice-web:
+    build: .
+    container_name: roadpolice-web
+    restart: unless-stopped
+    # Только localhost: наружу сервис выставляет tailscale serve на :10443.
+    ports:
+      - "127.0.0.1:8087:8080"
+    environment:
+      TZ: Asia/Yerevan
+    volumes:
+      - ./bank:/app/bank:ro   # bank.json и images/ из roadpolice-trainer/assets
+      - ./data:/app/data      # trainer.db — прогресс
