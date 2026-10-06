@@ -82,7 +82,7 @@ git clone https://github.com/Grenfis/roadpolice-web.git /srv/data/appdata/roadpo
 cd /srv/data/appdata/roadpolice-web
 # банк — с машины, где собран roadpolice-trainer:
 #   rsync -a assets/bank.json assets/images snnas:/srv/data/appdata/roadpolice-web/bank/
-mkdir -p data && sudo chown 10001:10001 data   # контейнер работает от uid 10001
+mkdir -p data   # контейнер работает от uid 1000 (snippy), см. docker-compose.yml
 docker compose up -d --build
 tailscale serve --bg --https=10443 8087
 ```
