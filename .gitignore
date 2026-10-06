@@ -1,0 +1,10 @@
+# банк вопросов — чужой контент, собирается в roadpolice-trainer (tools/dataset)
+/bank/
+# база прогресса
+/data/
+*.db
+*.db-shm
+*.db-wal
+
+node_modules/
+frontend/dist/
