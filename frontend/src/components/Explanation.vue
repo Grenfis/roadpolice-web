@@ -10,12 +10,13 @@ const props = defineProps<{
   questionId: string;
   answer: number; // номер верного варианта
   chosen: number; // выбранный; 0 — не отвечено
+  expanded?: boolean; // сразу показать разбор всех вариантов
 }>();
 
 const data = ref<Explanation | null>(null);
 const loaded = ref(false);
 const error = ref("");
-const showOthers = ref(false);
+const showOthers = ref(!!props.expanded);
 
 async function load() {
   try {
@@ -29,7 +30,7 @@ async function load() {
 }
 watch(() => props.questionId, () => {
   loaded.value = false;
-  showOthers.value = false;
+  showOthers.value = !!props.expanded;
   void load();
 }, { immediate: true });
 

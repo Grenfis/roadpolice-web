@@ -9,8 +9,9 @@ import ExamReview from "./components/ExamReview.vue";
 import TrainingScreen from "./components/Training.vue";
 import Mistakes from "./components/Mistakes.vue";
 import StatsScreen from "./components/Stats.vue";
+import Preview from "./components/Preview.vue";
 
-type Screen = "loading" | "home" | "exam" | "review" | "training" | "mistakes" | "stats";
+type Screen = "loading" | "home" | "exam" | "review" | "training" | "mistakes" | "stats" | "preview";
 
 const screen = ref<Screen>("loading");
 const appState = ref<State | null>(null);
@@ -45,13 +46,25 @@ async function loadState() {
   return s;
 }
 
+// #q=<id вопроса> — просмотр вопроса с пояснением без записи ответа
+const previewId = ref("");
+function readHash() {
+  const m = location.hash.match(/^#q=([\w-]+)$/);
+  previewId.value = m ? m[1] : "";
+  if (previewId.value) screen.value = "preview";
+  else if (screen.value === "preview") void goHome();
+}
+window.addEventListener("hashchange", readHash);
+
 async function init() {
   const s = await loadState();
   screen.value = s ? "home" : "loading";
+  if (s) readHash();
 }
 void init();
 
 async function goHome() {
+  if (location.hash) history.replaceState(null, "", location.pathname);
   askNew.value = false;
   await loadState();
   homeKey.value++;
@@ -247,6 +260,7 @@ async function openStats() {
           @home="goHome"
         />
         <StatsScreen v-else-if="screen === 'stats' && stats" :stats="stats" @home="goHome" />
+        <Preview v-else-if="screen === 'preview' && previewId" :question-id="previewId" @home="goHome" />
       </div>
     </main>
   </div>
