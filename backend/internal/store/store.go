@@ -199,15 +199,19 @@ type Mistake struct {
 	WrongCount int    `json:"wrong_count"`
 	Streak     int    `json:"streak"`
 	LastWrong  int64  `json:"last_wrong_ts"`
+	LastChosen int    `json:"last_chosen"` // последний неверный ответ; 0 — не ответил (экзамен)
 }
 
 // Mistakes возвращает непроработанные ошибки: сначала самые частые,
 // внутри равных — самые свежие.
 func (s *Store) Mistakes() ([]Mistake, error) {
 	rows, err := s.db.Query(`
-		SELECT question_id, wrong_count, streak, last_wrong_ts
-		FROM mistakes WHERE resolved_at IS NULL
-		ORDER BY wrong_count DESC, last_wrong_ts DESC`)
+		SELECT m.question_id, m.wrong_count, m.streak, m.last_wrong_ts,
+		       COALESCE((SELECT a.chosen FROM answers a
+		                 WHERE a.question_id = m.question_id AND a.correct = 0
+		                 ORDER BY a.id DESC LIMIT 1), 0)
+		FROM mistakes m WHERE m.resolved_at IS NULL
+		ORDER BY m.wrong_count DESC, m.last_wrong_ts DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +219,7 @@ func (s *Store) Mistakes() ([]Mistake, error) {
 	out := []Mistake{}
 	for rows.Next() {
 		var m Mistake
-		if err := rows.Scan(&m.QuestionID, &m.WrongCount, &m.Streak, &m.LastWrong); err != nil {
+		if err := rows.Scan(&m.QuestionID, &m.WrongCount, &m.Streak, &m.LastWrong, &m.LastChosen); err != nil {
 			return nil, err
 		}
 		out = append(out, m)

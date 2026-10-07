@@ -233,3 +233,22 @@ func TestExplanationFlags(t *testing.T) {
 		t.Errorf("всего пометок %d, ожидалось 2", len(all))
 	}
 }
+
+func TestMistakeLastChosen(t *testing.T) {
+	s := open(t)
+	s.RecordAnswer("q1", "training", 2, false)
+	s.RecordAnswer("q1", "training", 1, true)
+	s.RecordAnswer("q1", "training", 3, false)
+	s.RecordAnswer("q2", "exam", 0, false) // не ответил на экзамене
+	ms, err := s.Mistakes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]int{}
+	for _, m := range ms {
+		got[m.QuestionID] = m.LastChosen
+	}
+	if got["q1"] != 3 || got["q2"] != 0 {
+		t.Errorf("последний неверный ответ: %v", got)
+	}
+}

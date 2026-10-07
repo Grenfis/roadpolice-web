@@ -96,6 +96,7 @@ export interface MistakeRow {
   wrong_count: number;
   streak: number;
   last_wrong_ts: number;
+  last_chosen: number; // последний неверный ответ; 0 — не ответил (экзамен)
 }
 
 export interface ExamRecord {

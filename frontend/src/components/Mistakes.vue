@@ -1,9 +1,18 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import type { MistakeRow } from "../lib/api";
 import { SECTION_SHORT, fmtDate, plural } from "../lib/api";
+import Explanation from "./Explanation.vue";
+import QuestionCard from "./QuestionCard.vue";
 
 defineProps<{ rows: MistakeRow[]; resolveAfter: number }>();
-const emit = defineEmits<{ practice: []; home: [] }>();
+const emit = defineEmits<{ practice: []; practiceOne: [id: string]; home: [] }>();
+
+// у каких вопросов раскрыто пояснение
+const open = ref<Record<string, boolean>>({});
+function toggle(id: string) {
+  open.value = { ...open.value, [id]: !open.value[id] };
+}
 </script>
 
 <template>
@@ -42,6 +51,20 @@ const emit = defineEmits<{ practice: []; home: [] }>();
         <span class="spacer"></span>
         <span>последняя ошибка {{ fmtDate(r.last_wrong_ts) }}</span>
       </div>
+      <div class="row actions">
+        <button class="primary small" @click="emit('practiceOne', r.question.id)">Прорешать</button>
+        <button class="small" @click="toggle(r.question.id)">
+          {{ open[r.question.id] ? "Скрыть пояснение" : "Пояснение" }}
+        </button>
+      </div>
+      <div v-if="open[r.question.id]" class="detail">
+        <p class="dim note">
+          <template v-if="r.last_chosen">Ваш последний неверный ответ — вариант {{ r.last_chosen }}.</template>
+          <template v-else>В последний раз вы не ответили (вышло время экзамена).</template>
+        </p>
+        <QuestionCard :q="r.question" :chosen="r.last_chosen" :reveal="true" :answer="r.question.answer" :disabled="true" :show-meta="false" />
+        <Explanation :question-id="r.question.id" :answer="r.question.answer" :chosen="r.last_chosen" />
+      </div>
     </li>
   </ul>
 </template>
@@ -56,6 +79,10 @@ const emit = defineEmits<{ practice: []; home: [] }>();
 .top { gap: 7px; flex-wrap: wrap; }
 .text { margin: 0; font-size: 14.5px; line-height: 1.45; }
 .bottom { font-size: 12.5px; gap: 8px; flex-wrap: wrap; }
+.actions { gap: 8px; flex-wrap: wrap; }
+.small { padding: 6px 12px; font-size: 13.5px; }
+.detail { display: grid; gap: 10px; margin-top: 4px; }
+.note { margin: 0; font-size: 13px; }
 
 @media (max-width: 600px) {
   .head { padding: 12px 14px; }

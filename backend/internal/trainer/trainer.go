@@ -529,6 +529,7 @@ type MistakeRow struct {
 	WrongCount int           `json:"wrong_count"`
 	Streak     int           `json:"streak"`
 	LastWrong  int64         `json:"last_wrong_ts"`
+	LastChosen int           `json:"last_chosen"` // последний неверный ответ; 0 — не ответил
 }
 
 func (a *Service) GetMistakes() ([]MistakeRow, error) {
@@ -543,7 +544,7 @@ func (a *Service) GetMistakes() ([]MistakeRow, error) {
 			continue // вопрос исчез из банка после обновления — молча пропускаем
 		}
 		out = append(out, MistakeRow{Question: *q, WrongCount: m.WrongCount,
-			Streak: m.Streak, LastWrong: m.LastWrong})
+			Streak: m.Streak, LastWrong: m.LastWrong, LastChosen: m.LastChosen})
 	}
 	return out, nil
 }

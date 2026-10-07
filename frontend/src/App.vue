@@ -19,6 +19,8 @@ const result = ref<ExamResult | null>(null);
 const training = ref<Training | null>(null);
 const trainingMode = ref<"training" | "mistakes">("training");
 const trainingTitle = ref("Тренировка");
+// одиночный вопрос из списка ошибок возвращает обратно в список
+const trainingBack = ref<"home" | "mistakes">("home");
 const mistakes = ref<MistakeRow[]>([]);
 const stats = ref<Stats | null>(null);
 const error = ref("");
@@ -131,7 +133,7 @@ function selectionTitle(sel: Selection): string {
   }
 }
 
-async function startTraining(sel: Selection) {
+async function startTraining(sel: Selection, back: "home" | "mistakes" = "home") {
   const t = await guard(() => api.startTraining(sel));
   if (!t || t.questions.length === 0) {
     if (t) error.value = "В этой выборке нет вопросов";
@@ -140,7 +142,17 @@ async function startTraining(sel: Selection) {
   training.value = t;
   trainingMode.value = sel.scope === "ids" ? "mistakes" : "training";
   trainingTitle.value = selectionTitle(sel);
+  trainingBack.value = back;
   screen.value = "training";
+}
+
+async function practiceOne(id: string) {
+  await startTraining({ scope: "ids", ids: [id] }, "mistakes");
+}
+
+async function leaveTraining() {
+  if (trainingBack.value === "mistakes") await openMistakes();
+  else await goHome();
 }
 
 async function openMistakes() {
@@ -223,13 +235,15 @@ async function openStats() {
           :mode="trainingMode"
           :title="trainingTitle"
           :resolve-after="appState.resolve_after"
-          @exit="goHome"
+          :exit-label="trainingBack === 'mistakes' ? 'К списку ошибок' : undefined"
+          @exit="leaveTraining"
         />
         <Mistakes
           v-else-if="screen === 'mistakes' && appState"
           :rows="mistakes"
           :resolve-after="appState.resolve_after"
           @practice="practiceMistakes"
+          @practice-one="practiceOne"
           @home="goHome"
         />
         <StatsScreen v-else-if="screen === 'stats' && stats" :stats="stats" @home="goHome" />

@@ -11,6 +11,7 @@ const props = defineProps<{
   mode: "training" | "mistakes";
   title: string;
   resolveAfter: number;
+  exitLabel?: string; // куда ведёт выход: по умолчанию «В меню»
 }>();
 const emit = defineEmits<{ exit: [] }>();
 
@@ -133,7 +134,7 @@ useKeydown((e) => {
     </p>
     <div class="row">
       <button class="primary" @click="restart">Пройти заново</button>
-      <button @click="emit('exit')">В меню</button>
+      <button @click="emit('exit')">{{ exitLabel ?? "В меню" }}</button>
     </div>
   </section>
 
