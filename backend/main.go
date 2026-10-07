@@ -4,7 +4,7 @@
 // Настройка через переменные окружения:
 //
 //	RP_ADDR          адрес прослушивания        (по умолчанию :8080)
-//	RP_BANK_DIR      bank.json и images/        (./bank)
+//	RP_BANK_DIR      bank.json, images/ и explanations.json (./bank)
 //	RP_DATA_DIR      база прогресса trainer.db  (./data)
 //	RP_FRONTEND_DIR  собранный фронт            (./public)
 package main
@@ -19,6 +19,7 @@ import (
 
 	"roadpolice-web/internal/api"
 	"roadpolice-web/internal/bank"
+	"roadpolice-web/internal/explain"
 	"roadpolice-web/internal/store"
 	"roadpolice-web/internal/trainer"
 )
@@ -52,6 +53,11 @@ func main() {
 	}
 	defer st.Close()
 	svc := trainer.New(b, st)
+	ex, err := explain.Load(filepath.Join(bankDir, "explanations.json"))
+	if err != nil {
+		log.Fatalf("пояснения: %v", err)
+	}
+	svc.SetExplanations(ex)
 
 	mux := http.NewServeMux()
 	api.Routes(mux, svc)
@@ -63,7 +69,7 @@ func main() {
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	log.Printf("слушаю %s (банк: %d вопросов, данные: %s)", addr, len(b.Questions), dataDir)
+	log.Printf("слушаю %s (банк: %d вопросов, пояснений: %d, данные: %s)", addr, len(b.Questions), len(ex.Items), dataDir)
 	log.Fatal(srv.ListenAndServe())
 }
 

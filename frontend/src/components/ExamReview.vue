@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import type { ExamResult } from "../lib/api";
 import { fmtTime, plural } from "../lib/api";
+import Explanation from "./Explanation.vue";
 import QuestionCard from "./QuestionCard.vue";
 
 const props = defineProps<{ result: ExamResult }>();
@@ -62,6 +63,7 @@ const shown = computed(() =>
         <span v-else class="pill bad">ошибка</span>
       </div>
       <QuestionCard :q="item.question" :chosen="item.chosen" :reveal="true" :answer="item.question.answer" :disabled="true" />
+      <Explanation :question-id="item.question.id" :answer="item.question.answer" :chosen="item.chosen" />
     </div>
   </div>
 </template>

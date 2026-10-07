@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"roadpolice-web/internal/bank"
+	"roadpolice-web/internal/explain"
 	"roadpolice-web/internal/store"
 )
 
@@ -392,5 +393,74 @@ func TestStats(t *testing.T) {
 		if a.Seen != want[a.Key] {
 			t.Errorf("раздел %s: в билете было %d вопросов, ожидалось %d", a.Key, a.Seen, want[a.Key])
 		}
+	}
+}
+
+func TestExplanationsAndFlags(t *testing.T) {
+	svc := newService(t)
+	q := svc.bank.Questions[0]
+	other := svc.bank.Questions[1]
+	svc.SetExplanations(&explain.Set{Items: map[string]explain.Item{
+		q.ID: {
+			Answer:  &explain.Part{Text: "потому что", Rev: "a1", Refs: []explain.Ref{{Unit: "pdd:1", Label: "ПДД, п. 1", Ru: "…"}}},
+			Options: map[string]explain.Part{"2": {Text: "не так", Rev: "o1"}},
+		},
+	}})
+
+	if e, err := svc.GetExplanation(other.ID); err != nil || e != nil {
+		t.Fatalf("у вопроса без пояснения: %+v, err=%v", e, err)
+	}
+	e, err := svc.GetExplanation(q.ID)
+	if err != nil || e == nil || e.Answer == nil || e.Answer.Text != "потому что" || e.Options["2"].Text != "не так" {
+		t.Fatalf("пояснение: %+v, err=%v", e, err)
+	}
+
+	if err := svc.SetFlag(q.ID, "answer", "  не тот пункт "); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.SetFlag(q.ID, "7", ""); !errors.Is(err, ErrNoPart) {
+		t.Errorf("пометка несуществующей части: err=%v", err)
+	}
+	e, _ = svc.GetExplanation(q.ID)
+	if e.Answer.Flag == nil || e.Answer.Flag.Comment != "не тот пункт" || e.Options["2"].Flag != nil {
+		t.Fatalf("пометка не видна: %+v", e)
+	}
+
+	// пояснение переписали — пометка остаётся в разборе, но к новому тексту не прилипает
+	svc.SetExplanations(&explain.Set{Items: map[string]explain.Item{
+		q.ID: {Answer: &explain.Part{Text: "исправлено", Rev: "a2"}, Options: map[string]explain.Part{}},
+	}})
+	e, _ = svc.GetExplanation(q.ID)
+	if e.Answer.Flag != nil {
+		t.Errorf("старая пометка прилипла к новому тексту")
+	}
+	rows, err := svc.Flags()
+	if err != nil || len(rows) != 1 || rows[0].Current || rows[0].Question.ID != q.ID {
+		t.Fatalf("разбор пометок: %+v, err=%v", rows, err)
+	}
+
+	// снятие пометки
+	svc.SetFlag(q.ID, "answer", "")
+	if err := svc.ClearFlag(q.ID, "answer"); err != nil {
+		t.Fatal(err)
+	}
+	if e, _ := svc.GetExplanation(q.ID); e.Answer.Flag != nil {
+		t.Errorf("пометка не снялась")
+	}
+}
+
+func TestExplanationHiddenDuringExam(t *testing.T) {
+	svc := newService(t)
+	ex, _ := svc.StartExam()
+	id := ex.Questions[0].ID
+	svc.SetExplanations(&explain.Set{Items: map[string]explain.Item{
+		id: {Answer: &explain.Part{Text: "ответ 2", Rev: "r"}, Options: map[string]explain.Part{}},
+	}})
+	if _, err := svc.GetExplanation(id); !errors.Is(err, ErrExamQuestion) {
+		t.Fatalf("пояснение выдано посреди экзамена: err=%v", err)
+	}
+	svc.FinishExam(ex.ExamID, ex.Lease)
+	if e, err := svc.GetExplanation(id); err != nil || e == nil {
+		t.Errorf("после сдачи пояснения нет: %+v, err=%v", e, err)
 	}
 }

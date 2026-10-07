@@ -42,6 +42,28 @@ func Routes(mux *http.ServeMux, svc *trainer.Service) {
 	mux.HandleFunc("GET /api/stats", func(w http.ResponseWriter, _ *http.Request) {
 		reply(w)(svc.GetStats())
 	})
+	mux.HandleFunc("GET /api/questions/{id}/explanation", func(w http.ResponseWriter, r *http.Request) {
+		reply(w)(svc.GetExplanation(r.PathValue("id")))
+	})
+	mux.HandleFunc("PUT /api/questions/{id}/explanation/{part}/flag", h.setFlag)
+	mux.HandleFunc("DELETE /api/questions/{id}/explanation/{part}/flag", func(w http.ResponseWriter, r *http.Request) {
+		reply(w)(struct{}{}, svc.ClearFlag(r.PathValue("id"), r.PathValue("part")))
+	})
+	mux.HandleFunc("GET /api/flags", func(w http.ResponseWriter, _ *http.Request) {
+		reply(w)(svc.Flags())
+	})
+}
+
+// ---------- пояснения ----------
+
+func (h handler) setFlag(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Comment string `json:"comment"`
+	}
+	if !decode(w, r, &body) {
+		return
+	}
+	reply(w)(struct{}{}, h.svc.SetFlag(r.PathValue("id"), r.PathValue("part"), body.Comment))
 }
 
 // ---------- экзамен ----------
@@ -181,6 +203,10 @@ func send(w http.ResponseWriter, v any, err error) {
 		fail(w, http.StatusConflict, "lease_lost", err)
 	case errors.Is(err, trainer.ErrNoExam):
 		fail(w, http.StatusNotFound, "no_exam", err)
+	case errors.Is(err, trainer.ErrExamQuestion):
+		fail(w, http.StatusConflict, "exam_question", err)
+	case errors.Is(err, trainer.ErrNoPart):
+		fail(w, http.StatusNotFound, "no_part", err)
 	case err != nil:
 		log.Printf("ошибка: %v", err)
 		fail(w, http.StatusInternalServerError, "", err)

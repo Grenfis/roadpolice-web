@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref } from "vue";
 import type { AnswerResult, Training } from "../lib/api";
 import { api, plural } from "../lib/api";
 import { useKeydown } from "../lib/keys";
+import Explanation from "./Explanation.vue";
 import QuestionCard from "./QuestionCard.vue";
 
 const props = defineProps<{
@@ -22,6 +23,7 @@ const busy = ref(false);
 const error = ref("");
 const stats = ref({ answered: 0, correct: 0 });
 const done = ref(false);
+const showExpl = ref(false); // пояснение к верному ответу — по кнопке
 let autoTimer: ReturnType<typeof setTimeout> | null = null;
 
 const q = computed(() => props.training.questions[idx.value]);
@@ -55,8 +57,15 @@ async function pick(n: number) {
   }
 }
 
+// «Пояснение» после верного ответа: отменяет автопереход
+function explain() {
+  clearAuto();
+  showExpl.value = true;
+}
+
 function reset() {
   clearAuto();
+  showExpl.value = false;
   picked.value = 0;
   res.value = null;
   error.value = "";
@@ -150,7 +159,8 @@ useKeydown((e) => {
       <button :disabled="idx === 0" @click="prev">Назад</button>
       <template v-if="res">
         <button class="primary" @click="next">Далее</button>
-        <span v-if="res.correct" class="hint ok-text">Верно — едем дальше</span>
+        <button v-if="res.correct && !showExpl" @click="explain">Пояснение</button>
+        <span v-if="res.correct" class="hint ok-text">Верно{{ showExpl ? "" : " — едем дальше" }}</span>
         <span v-else class="hint bad-text">
           Неверно.
           <template v-if="res.mistake.just_solved">Вопрос всё ещё в списке ошибок.</template>
@@ -165,6 +175,14 @@ useKeydown((e) => {
         <template v-else>Верных подряд: {{ res.mistake.streak }} из {{ resolveAfter }}</template>
       </span>
     </div>
+
+    <Explanation
+      v-if="res && (!res.correct || showExpl)"
+      class="expl"
+      :question-id="q.id"
+      :answer="res.answer"
+      :chosen="picked"
+    />
 
     <p v-if="error" class="err">Ответ не сохранён: {{ error }}</p>
   </template>
@@ -190,6 +208,7 @@ useKeydown((e) => {
 .ok-text { color: var(--ok); }
 .bad-text { color: var(--bad); }
 .err { color: var(--bad); font-size: 13.5px; }
+.expl { margin-top: 14px; }
 
 .finish { padding: 18px; display: grid; gap: 12px; }
 .finish p { margin: 0; font-size: 14px; }

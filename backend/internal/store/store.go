@@ -64,6 +64,17 @@ CREATE TABLE IF NOT EXISTS active_exam (
   lease         TEXT    NOT NULL       -- токен устройства, которое ведёт экзамен
 );
 
+-- пометки «пояснение некорректно»: привязаны к версии (rev) части пояснения,
+-- поэтому после исправления текста старая пометка к нему не прилипает
+CREATE TABLE IF NOT EXISTS explanation_flags (
+  question_id TEXT    NOT NULL,
+  part        TEXT    NOT NULL,          -- answer | номер неверного варианта
+  rev         TEXT    NOT NULL,
+  comment     TEXT    NOT NULL DEFAULT '',
+  created_at  INTEGER NOT NULL,
+  PRIMARY KEY (question_id, part, rev)
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -427,4 +438,68 @@ func (s *Store) SetSetting(key, value string) error {
 		INSERT INTO settings(key, value) VALUES(?,?)
 		ON CONFLICT(key) DO UPDATE SET value = excluded.value`, key, value)
 	return err
+}
+
+// Flag — пометка «пояснение некорректно».
+type Flag struct {
+	QuestionID string `json:"question_id"`
+	Part       string `json:"part"`
+	Rev        string `json:"rev"`
+	Comment    string `json:"comment"`
+	CreatedAt  int64  `json:"created_at"`
+}
+
+// SetFlag ставит пометку или меняет её комментарий.
+func (s *Store) SetFlag(questionID, part, rev, comment string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO explanation_flags(question_id, part, rev, comment, created_at) VALUES(?,?,?,?,?)
+		ON CONFLICT(question_id, part, rev) DO UPDATE SET comment = excluded.comment`,
+		questionID, part, rev, comment, time.Now().Unix())
+	return err
+}
+
+func (s *Store) ClearFlag(questionID, part, rev string) error {
+	_, err := s.db.Exec(`DELETE FROM explanation_flags WHERE question_id = ? AND part = ? AND rev = ?`,
+		questionID, part, rev)
+	return err
+}
+
+// Flags возвращает все пометки вопроса (всех версий), ключ — part+"@"+rev.
+func (s *Store) Flags(questionID string) (map[string]Flag, error) {
+	rows, err := s.db.Query(`
+		SELECT question_id, part, rev, comment, created_at FROM explanation_flags
+		WHERE question_id = ?`, questionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]Flag{}
+	for rows.Next() {
+		var f Flag
+		if err := rows.Scan(&f.QuestionID, &f.Part, &f.Rev, &f.Comment, &f.CreatedAt); err != nil {
+			return nil, err
+		}
+		out[f.Part+"@"+f.Rev] = f
+	}
+	return out, rows.Err()
+}
+
+// AllFlags — все пометки, свежие первыми.
+func (s *Store) AllFlags() ([]Flag, error) {
+	rows, err := s.db.Query(`
+		SELECT question_id, part, rev, comment, created_at FROM explanation_flags
+		ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Flag{}
+	for rows.Next() {
+		var f Flag
+		if err := rows.Scan(&f.QuestionID, &f.Part, &f.Rev, &f.Comment, &f.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, f)
+	}
+	return out, rows.Err()
 }

@@ -10,10 +10,12 @@ import (
 	"math/rand"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"roadpolice-web/internal/bank"
+	"roadpolice-web/internal/explain"
 	"roadpolice-web/internal/store"
 )
 
@@ -23,7 +25,8 @@ type Service struct {
 	store *store.Store
 	rnd   *rand.Rand
 
-	now func() time.Time // подменяется в тестах
+	now  func() time.Time // подменяется в тестах
+	expl *explain.Set     // пояснения к вопросам; без файла — пустой набор
 
 	mu sync.Mutex // экзамен: чтение-изменение-запись active_exam
 }
@@ -34,8 +37,12 @@ func New(b *bank.Bank, s *store.Store) *Service {
 		store: s,
 		rnd:   rand.New(rand.NewSource(time.Now().UnixNano())),
 		now:   time.Now,
+		expl:  &explain.Set{Items: map[string]explain.Item{}},
 	}
 }
+
+// SetExplanations подключает пояснения к вопросам.
+func (a *Service) SetExplanations(e *explain.Set) { a.expl = e }
 
 // Close закрывает базу.
 func (a *Service) Close() error {
@@ -608,6 +615,128 @@ func (a *Service) GetStats() (Stats, error) {
 	sort.Ints(gids)
 	for _, g := range gids {
 		out.ByGroup = append(out.ByGroup, *grp[g])
+	}
+	return out, nil
+}
+
+// ---------- пояснения ----------
+
+var (
+	ErrExamQuestion = errors.New("вопрос из незавершённого экзамена: пояснение откроется после сдачи")
+	ErrNoPart       = errors.New("такой части пояснения нет")
+)
+
+// PartView — часть пояснения с пометкой «некорректно», если она стоит
+// на текущей версии текста.
+type PartView struct {
+	explain.Part
+	Flag *store.Flag `json:"flag"`
+}
+
+type ExplanationView struct {
+	NoBasis bool                `json:"no_basis"`
+	Answer  *PartView           `json:"answer"`
+	Options map[string]PartView `json:"options"`
+}
+
+// GetExplanation возвращает пояснение к вопросу или nil, если его нет.
+// Вопросы незавершённого экзамена не поясняются: пояснение выдаёт ответ.
+func (a *Service) GetExplanation(questionID string) (*ExplanationView, error) {
+	if _, ok := a.bank.ByID(questionID); !ok {
+		return nil, fmt.Errorf("нет вопроса %s", questionID)
+	}
+	a.mu.Lock()
+	ae, err := a.store.ActiveExam()
+	a.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	if ae != nil && slices.Contains(ae.QuestionIDs, questionID) {
+		return nil, ErrExamQuestion
+	}
+	it, ok := a.expl.Get(questionID)
+	if !ok {
+		return nil, nil
+	}
+	flags, err := a.store.Flags(questionID)
+	if err != nil {
+		return nil, err
+	}
+	view := func(key string, p explain.Part) PartView {
+		v := PartView{Part: p}
+		if f, ok := flags[key+"@"+p.Rev]; ok {
+			v.Flag = &f
+		}
+		return v
+	}
+	out := &ExplanationView{NoBasis: it.NoBasis, Options: map[string]PartView{}}
+	if it.Answer != nil {
+		v := view("answer", *it.Answer)
+		out.Answer = &v
+	}
+	for k, p := range it.Options {
+		out.Options[k] = view(k, p)
+	}
+	return out, nil
+}
+
+// SetFlag помечает часть пояснения как некорректную (или меняет комментарий).
+// part: "answer" или номер неверного варианта.
+func (a *Service) SetFlag(questionID, part, comment string) error {
+	p, err := a.part(questionID, part)
+	if err != nil {
+		return err
+	}
+	return a.store.SetFlag(questionID, part, p.Rev, strings.TrimSpace(comment))
+}
+
+// ClearFlag снимает пометку с текущей версии части пояснения.
+func (a *Service) ClearFlag(questionID, part string) error {
+	p, err := a.part(questionID, part)
+	if err != nil {
+		return err
+	}
+	return a.store.ClearFlag(questionID, part, p.Rev)
+}
+
+func (a *Service) part(questionID, part string) (explain.Part, error) {
+	it, ok := a.expl.Get(questionID)
+	if !ok {
+		return explain.Part{}, ErrNoPart
+	}
+	p, ok := it.Part(part)
+	if !ok {
+		return explain.Part{}, ErrNoPart
+	}
+	return p, nil
+}
+
+// FlagRow — пометка для разбора: сам вопрос и текст, который пометили.
+// Current = false — пояснение уже переписано после пометки.
+type FlagRow struct {
+	store.Flag
+	Question bank.Question `json:"question"`
+	Text     string        `json:"text"`
+	Refs     []explain.Ref `json:"refs"`
+	Current  bool          `json:"current"`
+}
+
+// Flags — все пометки с контекстом, свежие первыми.
+func (a *Service) Flags() ([]FlagRow, error) {
+	fs, err := a.store.AllFlags()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]FlagRow, 0, len(fs))
+	for _, f := range fs {
+		row := FlagRow{Flag: f}
+		if q, ok := a.bank.ByID(f.QuestionID); ok {
+			row.Question = *q
+		}
+		if p, err := a.part(f.QuestionID, f.Part); err == nil {
+			row.Text, row.Refs, row.Current = p.Text, p.Refs, p.Rev == f.Rev
+		}
+		out = append(out, row)
 	}
 	return out, nil
 }

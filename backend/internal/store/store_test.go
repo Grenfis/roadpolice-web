@@ -207,3 +207,29 @@ func TestAbandonExam(t *testing.T) {
 		t.Error("второй раз бросить тот же экзамен получилось")
 	}
 }
+
+func TestExplanationFlags(t *testing.T) {
+	s := open(t)
+	if err := s.SetFlag("q1", "answer", "r1", ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetFlag("q1", "answer", "r1", "не тот пункт"); err != nil { // смена комментария
+		t.Fatal(err)
+	}
+	s.SetFlag("q1", "2", "r9", "")
+	s.SetFlag("q2", "answer", "r5", "")
+
+	fl, err := s.Flags("q1")
+	if err != nil || len(fl) != 2 || fl["answer@r1"].Comment != "не тот пункт" {
+		t.Fatalf("пометки q1: %+v, err=%v", fl, err)
+	}
+	if err := s.ClearFlag("q1", "answer", "r1"); err != nil {
+		t.Fatal(err)
+	}
+	if fl, _ := s.Flags("q1"); len(fl) != 1 {
+		t.Errorf("после снятия осталось %d пометок", len(fl))
+	}
+	if all, _ := s.AllFlags(); len(all) != 2 {
+		t.Errorf("всего пометок %d, ожидалось 2", len(all))
+	}
+}

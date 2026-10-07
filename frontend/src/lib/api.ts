@@ -124,8 +124,29 @@ export interface Stats {
   overall: Accuracy;
 }
 
-// Коды ошибок экзамена, которые присылает бэкенд.
-export type ErrorCode = "exam_active" | "lease_lost" | "no_exam" | "network" | "";
+// Пояснение: ссылки на пункты правил с русским текстом пункта. ru_source:
+// drv.am — дословный перевод drv.am, model — перевод модели (в drv.am
+// нужного места нет). Армянский оригинал, по которому проверены цитаты,
+// на устройство не приходит.
+export interface ExplanationRef { unit: string; label: string; ru: string; ru_source: "drv.am" | "model" }
+
+export interface ExplanationFlag { comment: string; created_at: number }
+
+export interface ExplanationPart {
+  text: string;
+  refs: ExplanationRef[];
+  rev: string;
+  flag: ExplanationFlag | null;
+}
+
+export interface Explanation {
+  no_basis: boolean; // без опоры на нормативный текст (первая помощь)
+  answer: ExplanationPart | null;
+  options: Record<string, ExplanationPart>; // ключ — номер неверного варианта
+}
+
+// Коды ошибок, которые присылает бэкенд.
+export type ErrorCode = "exam_active" | "lease_lost" | "no_exam" | "exam_question" | "no_part" | "network" | "";
 
 export class ApiError extends Error {
   constructor(message: string, readonly code: ErrorCode) {
@@ -176,6 +197,13 @@ export const api = {
   recordAnswer: (id: string, chosen: number, mode: "training" | "mistakes") =>
     call<AnswerResult>("POST", "/api/answers", { question_id: id, chosen, mode }),
   getMistakes: () => call<MistakeRow[]>("GET", "/api/mistakes"),
+  getExplanation: (id: string) =>
+    call<Explanation | null>("GET", `/api/questions/${encodeURIComponent(id)}/explanation`),
+  // part: "answer" или номер неверного варианта
+  setFlag: (id: string, part: string, comment: string) =>
+    call<object>("PUT", `/api/questions/${encodeURIComponent(id)}/explanation/${part}/flag`, { comment }),
+  clearFlag: (id: string, part: string) =>
+    call<object>("DELETE", `/api/questions/${encodeURIComponent(id)}/explanation/${part}/flag`),
   getStats: () => call<Stats>("GET", "/api/stats"),
 };
 
