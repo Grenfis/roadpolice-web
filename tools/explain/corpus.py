@@ -122,7 +122,7 @@ def main():
     i_annex2 = index_of(hy, lambda l: l == "Հավելված N 2", i_marks)
     i_annex2_end = index_of(hy, lambda l: l.startswith("Նկար 1"), i_annex2)
 
-    pdd_hy = drop_headers(split_points(hy, i_rules, i_form1, re.compile(r"^(\d{1,3}(?:\.\d)?)\.\s")))
+    pdd_hy = drop_headers(split_points(hy, i_rules, i_form1, re.compile(r"^(\d{1,3}(?:\.\d)?)[.․]\s")))
     signs_hy = split_points(hy, i_form1, i_marks, re.compile(r"^(\d\.\d{1,2}(?:\.\d{1,2})?)\.?[\s«,՝`-]"))
     marks_hy = split_points(hy, i_marks, i_annex2, re.compile(r"^(\d\.\d{1,2}(?:\.\d{1,2})?)(?:[`՝,]|\s-)"))
     faults_hy = split_points(hy, i_annex2, i_annex2_end, re.compile(r"^(\d{1,2})\.\s"))
@@ -165,7 +165,10 @@ def main():
                 # «4.2.1` «…», 4.2.2` «…»» или «1.4.1-1.4.6»: в подписи все номера записи
                 first = v.split("\n", 1)[0]
                 rng = re.match(r"^(\d[\d.]*\d)\s*-\s*(\d[\d.]*\d)", first)
-                nums = re.findall(r"(?:^|,\s*|և\s*)(\d\.\d{1,2}(?:\.\d{1,2})?)(?=[`՝.,]?\s*[«,`՝]|\s*-)", first)
+                # номера идут цепочкой в начале записи: «N` «имя», N` «имя»» или «N, N. «имя»»
+                num, name = r"\d\.\d{1,2}(?:\.\d{1,2})?", r"(?:[`՝.]?\s*«[^»]*»)?"
+                head = re.match(rf"^{num}{name}(?:\s*(?:,|և)\s*{num}{name})*", first)
+                nums = re.findall(num, head.group(0)) if head else []
                 if rng:
                     label = f"{rng.group(1)}-{rng.group(2)}"
                 elif len(nums) > 1:

@@ -5,6 +5,7 @@
   batch.py next [N]        следующие N вопросов без пояснений (по умолчанию 10)
   batch.py ids ID...       конкретные вопросы
   batch.py unit ID...      полный текст пунктов (hy и ru) — чтобы цитировать дословно
+  batch.py find REGEX      пункты, в русском тексте которых есть REGEX (без учёта регистра)
 
 Кандидаты — грубый поиск по пересечению основ слов с русским текстом пункта,
 в пределах раздела вопроса. Это подсказка, а не ограничение: сослаться можно
@@ -38,6 +39,10 @@ def load():
     p = BANK / "explanations.json"
     if p.exists():
         done = set(json.loads(p.read_text())["items"])
+    # вопросы, отложенные без пояснения (не удалось уверенно разобрать), — по строке «id  причина»
+    skip = BANK / "explain-skip.txt"
+    if skip.exists():
+        done |= {l.split()[0] for l in skip.read_text().splitlines() if l.strip()}
     drafts = BANK / "explain-drafts"
     if drafts.exists():
         for f in drafts.glob("*.json"):
@@ -45,7 +50,7 @@ def load():
     return bank, units, done
 
 
-def candidates(q, units, k=8):
+def candidates(q, units, k=5):
     kinds = SECTION_UNITS[q["section"]]
     if not kinds:
         return []
@@ -78,7 +83,7 @@ def show_question(q, units):
     if c:
         print("кандидаты:")
         for u in c:
-            ru = re.sub(r"\s+", " ", u["ru"])[:300]
+            ru = re.sub(r"\s+", " ", u["ru"])[:160]
             print(f"  - {u['id']} [{u['label']}] {ru}")
     print()
 
@@ -104,6 +109,13 @@ def main():
                 print(f"### {i}: нет такого пункта\n")
                 continue
             print(f"### {u['id']} [{u['label']}]\nhy: {u['hy']}\nru: {u['ru']}\n")
+    elif cmd == "find":
+        rx = re.compile(sys.argv[2], re.I)
+        for u in units:
+            for m in rx.finditer(u["ru"]):
+                a, b = max(0, m.start() - 120), min(len(u["ru"]), m.end() + 120)
+                print(f"{u['id']:14} …{re.sub(chr(92) + 's+', ' ', u['ru'][a:b])}…")
+                break
     else:
         sys.exit(__doc__)
 
