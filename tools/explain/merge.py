@@ -48,6 +48,10 @@ def check_part(part, units, no_basis, where, errors):
     if not text:
         errors.append(f"{where}: пустой текст")
         return None
+    # армянская буква внутри русского слова — опечатка при наборе
+    # (армянские названия на знаках, например «Թալին», допустимы)
+    if re.search(r"[А-Яа-яЁё][԰-֏]|[԰-֏][А-Яа-яЁё]", text):
+        errors.append(f"{where}: армянская буква в русском слове: {text[:60]!r}")
     refs_out = []
     for r in part.get("refs", []):
         u = units.get(r.get("unit"))
