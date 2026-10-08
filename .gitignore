@@ -9,3 +9,6 @@
 node_modules/
 frontend/dist/
 __pycache__/
+
+# архив для локального запуска (tools/package)
+/dist/
