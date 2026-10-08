@@ -125,7 +125,14 @@ def main():
 
     pdd_hy = drop_headers(split_points(hy, i_rules, i_form1, re.compile(r"^(\d{1,3}(?:\.\d)?)[.․]\s")))
     signs_hy = split_points(hy, i_form1, i_marks, re.compile(r"^(\d\.\d{1,2}(?:\.\d{1,2})?)\.?[\s«,՝`-]"))
-    marks_hy = split_points(hy, i_marks, i_annex2, re.compile(r"^(\d\.\d{1,2}(?:\.\d{1,2})?)(?:[`՝,]|\s-|\s\()"))
+    # правила пересечения линий разметки идут сплошным блоком после описаний линий;
+    # строки «1.5 - 1.8 гծերը…» иначе приняли бы за пункт 1.5 — вырезаем блок отдельно
+    i_cross = index_of(hy, lambda l: l.startswith("1.1, 1.2 և 1.3 գծերը հատելն"), i_marks)
+    i_cross_end = index_of(hy, lambda l: l.startswith("1.11 գիծը թույլատրվում է հատել"), i_cross)
+    cross_hy = "\n".join(hy[i_cross:i_cross_end + 1])
+    hy_marks = hy[:i_cross] + hy[i_cross_end + 1:]
+    marks_hy = split_points(hy_marks, i_marks, i_annex2 - (i_cross_end + 1 - i_cross),
+                            re.compile(r"^(\d\.\d{1,2}(?:\.\d{1,2})?)(?:[`՝,]|\s-|\s\()"))
     faults_hy = split_points(hy, i_annex2, i_annex2_end, re.compile(r"^(\d{1,2})\.\s"))
 
     # ---------- закон: arlis 230020 ----------
@@ -147,6 +154,11 @@ def main():
     num = re.compile(r"^(\d\.\d{1,2}(?:\.\d{1,2})?)(?:[\s«.-]|$)")
     signs_ru = split_points(ru_signs, i_sg, i_mk, num)
     marks_ru = split_points(ru_signs, i_mk, len(ru_signs), num)
+    # у drv.am те же правила пересечения — примечаниями в конце 1.26 (и ещё раз в его тексте)
+    i_rc = index_of(ru_signs, lambda l: l.startswith("Примечание Линии 1.1, 1.2 и 1.3"), i_mk)
+    i_rc_end = index_of(ru_signs, lambda l: l.startswith("Примечание Линию 1.11"), i_rc)
+    cross_ru = "\n".join(l.removeprefix("Примечание ") for l in ru_signs[i_rc:i_rc_end + 1])
+    marks_ru["1.26"] = re.split(r" Линии 1\.1, 1\.2 и 1\.3 пересекать", marks_ru["1.26"])[0]
 
     ru_law = text_of(SRC / "drv-road-safety.html", main_only=True)
     # первые «Статья N.» — оглавление; берём последнее вхождение «Статья 1.»
@@ -214,6 +226,9 @@ def main():
     if id_hy:
         units.append({"id": "idmarks", "label": "Опознавательные знаки транспортных средств",
                       "hy": id_hy, "ru": id_ru})
+
+    units.append({"id": "marking:cross", "label": "Разметка, правила пересечения линий",
+                  "hy": cross_hy, "ru": cross_ru})
 
     add("pdd", "ПДД, п. {}", pdd_hy, pdd_ru)
     add("sign", "Знак {}", signs_hy, signs_ru)
