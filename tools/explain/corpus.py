@@ -125,7 +125,7 @@ def main():
 
     pdd_hy = drop_headers(split_points(hy, i_rules, i_form1, re.compile(r"^(\d{1,3}(?:\.\d)?)[.․]\s")))
     signs_hy = split_points(hy, i_form1, i_marks, re.compile(r"^(\d\.\d{1,2}(?:\.\d{1,2})?)\.?[\s«,՝`-]"))
-    marks_hy = split_points(hy, i_marks, i_annex2, re.compile(r"^(\d\.\d{1,2}(?:\.\d{1,2})?)(?:[`՝,]|\s-)"))
+    marks_hy = split_points(hy, i_marks, i_annex2, re.compile(r"^(\d\.\d{1,2}(?:\.\d{1,2})?)(?:[`՝,]|\s-|\s\()"))
     faults_hy = split_points(hy, i_annex2, i_annex2_end, re.compile(r"^(\d{1,2})\.\s"))
 
     # ---------- закон: arlis 230020 ----------
