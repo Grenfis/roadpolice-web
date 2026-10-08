@@ -11,6 +11,7 @@
   marking:X.Y  дорожная разметка (форма 2)
   faults:N     пункт перечня неисправностей (приложение 2)
   law:N        статья закона о БДД
+  idmarks      опознавательные знаки транспортных средств (форма 3)
 
 Запуск: tools/explain/corpus.py  (читает bank/rules-src/, пишет bank/rules.json)
 """
@@ -182,6 +183,37 @@ def main():
                 "hy": v,
                 "ru": ru,
             })
+
+    # группы знаков целиком: вступление и примечания группы (где ставят знаки,
+    # зона действия, исключения) стоят вне описаний отдельных знаков
+    def groups(lines, start, stop, head):
+        out, cur = {}, None
+        for l in lines[start:stop]:
+            m = head.match(l)
+            if m:
+                cur = m.group(1)
+                out[cur] = [l]
+            elif cur and not is_amend(l):
+                out[cur].append(l)
+        return {k: "\n".join(v) for k, v in out.items()}
+
+    grp_hy = groups(hy, i_form1, i_marks, re.compile(r"^(\d)\. [Ա-Ֆ]"))
+    grp_ru = groups(ru_signs, i_sg, i_mk, re.compile(r"^(\d)\. [А-ЯЁ]"))
+    for k, v in grp_hy.items():
+        title = re.sub(r"^\d\. ", "", grp_ru.get(k, "").split("\n", 1)[0]).lower()
+        units.append({"id": f"signgroup:{k}", "label": f"Дорожные знаки, {title or 'группа ' + k}",
+                      "hy": v, "ru": grp_ru.get(k, "")})
+
+    # опознавательные знаки (форма 3) идут сразу за разметкой и склеились с 2.7
+    id_hy, id_ru = "", ""
+    if "\nՁև N 3\n" in marks_hy.get("2.7", ""):
+        marks_hy["2.7"], id_hy = marks_hy["2.7"].split("\nՁև N 3\n", 1)
+    sep = "\nОпознавательные знаки транспортного средства (форма N 3)\n"
+    if sep in marks_ru.get("2.7", ""):
+        marks_ru["2.7"], id_ru = marks_ru["2.7"].split(sep, 1)
+    if id_hy:
+        units.append({"id": "idmarks", "label": "Опознавательные знаки транспортных средств",
+                      "hy": id_hy, "ru": id_ru})
 
     add("pdd", "ПДД, п. {}", pdd_hy, pdd_ru)
     add("sign", "Знак {}", signs_hy, signs_ru)

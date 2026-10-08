@@ -60,7 +60,7 @@ def candidates(q, units, k=5):
     nums = set(re.findall(r"\b(\d\.\d{1,2}(?:\.\d{1,2})?)\b", q["text"] + " ".join(q["options"])))
     scored = []
     for u in units:
-        kind, num = u["id"].split(":", 1)
+        kind, _, num = u["id"].partition(":")
         if kind not in kinds:
             continue
         score = len(qs & stems(u["ru"] or ""))
